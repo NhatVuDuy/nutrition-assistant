@@ -6,7 +6,7 @@ import Results from "./pages/Results";
 
 export default function App() {
   return (
-    <BrowserRouter basename="/nutrition-assistant">
+    <BrowserRouter>
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
