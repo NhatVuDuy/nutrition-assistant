@@ -9,6 +9,8 @@ export type ActivityLevel =
 
 export type WeightGoal = "lose_fast" | "lose" | "maintain" | "gain" | "gain_fast";
 
+export type NutrientCategory = "vitamin" | "mineral" | "amino_acid" | "fatty_acid" | "bioactive";
+
 export interface UserProfile {
   name: string;
   age: number;
@@ -51,9 +53,16 @@ export interface NutritionResults {
 export interface Micronutrient {
   name: string;
   unit: string;
-  rda: number;
+  rda: number | null;        // null = no established RDA
+  rdaNote?: string;          // e.g. "× kg thể trọng" for amino acids
   upperLimit?: number;
+  upperLimitDisplay?: string;
   sources: string[];
   icon: string;
-  category: "vitamin" | "mineral";
+  category: NutrientCategory;
+  subgroup?: string;
+  deficiency?: string;
+  excess?: string;
+  personalized?: boolean;    // true if RDA calculated from individual metrics
+  suggestion?: string;       // for bioactives with no RDA
 }
