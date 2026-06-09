@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Activity, Flame, Droplets, Calculator, ChevronRight, Scale, Dumbbell, Apple, RefreshCw } from "lucide-react";
 import type { NutritionResults, UserProfile, Micronutrient } from "../lib/types";
 import { getMicronutrients } from "../lib/micronutrients";
+import { generateMealPlan, type DayMealPlan, type MicroTargets } from "../lib/mealPlanner";
 
 const GOAL_LABELS: Record<string, string> = {
   lose_fast: "Giảm nhanh",
@@ -21,7 +22,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   very_active: "Rất tích cực",
 };
 
-type Tab = "overview" | "amino" | "vitamins" | "bioactive";
+type Tab = "overview" | "amino" | "vitamins" | "bioactive" | "mealplan";
 
 function StatCard({ icon, title, value, unit, sub, color }: {
   icon: React.ReactNode; title: string; value: string | number; unit?: string; sub?: string; color?: string;
@@ -359,11 +360,125 @@ function BioactiveTab({ nutrients }: { nutrients: Micronutrient[] }) {
   );
 }
 
+// ── MEAL PLAN TAB ────────────────────────────────────────────────────────────
+
+function MicroBar({ cov }: { cov: { name: string; unit: string; got: number; target: number; pct: number } }) {
+  const pct = Math.min(100, cov.pct);
+  const color = pct >= 80 ? "#10b981" : pct >= 50 ? "#f59e0b" : "#ef4444";
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+        <span style={{ color: "#e2e8f0" }}>{cov.name}</span>
+        <span style={{ color }}>
+          {cov.got} / {cov.target} {cov.unit} <span style={{ color: "#64748b" }}>({cov.pct}%)</span>
+        </span>
+      </div>
+      <div style={{ height: 6, background: "rgba(71,85,105,0.3)", borderRadius: 3, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3, transition: "width 0.4s" }} />
+      </div>
+    </div>
+  );
+}
+
+function MealCard({ meal }: { meal: DayMealPlan["meals"][0] }) {
+  return (
+    <div className="metric-card" style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <span style={{ fontSize: 24 }}>{meal.icon}</span>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "#f1f5f9" }}>{meal.label}: {meal.name}</div>
+          <div style={{ fontSize: 12, color: "#64748b" }}>🕐 {meal.time}</div>
+        </div>
+        <div style={{ marginLeft: "auto", textAlign: "right" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#f59e0b" }}>{meal.cal} kcal</div>
+          <div style={{ fontSize: 11, color: "#64748b" }}>P:{meal.protein}g · C:{meal.carbs}g · F:{meal.fat}g</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {meal.items.map((item) => (
+          <div key={item.food.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", background: "rgba(71,85,105,0.15)", borderRadius: 8 }}>
+            <span style={{ fontSize: 18, minWidth: 24 }}>{item.food.icon}</span>
+            <span style={{ fontSize: 14, color: "#e2e8f0", flex: 1 }}>{item.food.name}</span>
+            <span style={{ fontSize: 13, color: "#10b981", fontWeight: 600, whiteSpace: "nowrap" }}>{item.display}</span>
+            <span style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap" }}>{item.cal} kcal</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MealPlanTab({ plan, onRegenerate }: { plan: DayMealPlan; onRegenerate: () => void }) {
+  const lowCoverage = plan.microCoverage.filter((m) => m.pct < 50);
+  return (
+    <div>
+      {/* Summary bar */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        {[
+          { label: "Tổng calo", value: `${plan.totalCal} kcal`, color: "#f59e0b" },
+          { label: "Protein",   value: `${plan.totalProtein}g`,  color: "#10b981" },
+          { label: "Carbs",     value: `${plan.totalCarbs}g`,    color: "#06b6d4" },
+          { label: "Chất béo",  value: `${plan.totalFat}g`,      color: "#a78bfa" },
+        ].map((s) => (
+          <div key={s.label} style={{ flex: "1 1 120px", background: `${s.color}10`, border: `1px solid ${s.color}30`, borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 11, color: "#64748b" }}>{s.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+        <button
+          onClick={onRegenerate}
+          style={{ flex: "0 0 auto", padding: "10px 16px", borderRadius: 10, border: "1px solid rgba(71,85,105,0.4)", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+        >
+          <RefreshCw size={14} /> Làm mới thực đơn
+        </button>
+      </div>
+
+      {/* Meal cards */}
+      {plan.meals.map((meal) => (
+        <MealCard key={meal.slot + meal.name} meal={meal} />
+      ))}
+
+      {/* Micronutrient coverage */}
+      <div className="metric-card" style={{ marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+          <div style={{ padding: 10, borderRadius: 10, background: "rgba(139,92,246,0.2)" }}>
+            <Dumbbell size={20} color="#a78bfa" />
+          </div>
+          <span style={{ fontSize: 15, fontWeight: 600, color: "#e2e8f0" }}>Mức phủ vi chất từ thực đơn</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "0 32px" }}>
+          {plan.microCoverage.map((cov) => (
+            <MicroBar key={cov.name} cov={cov} />
+          ))}
+        </div>
+
+        {lowCoverage.length > 0 && (
+          <div style={{ marginTop: 16, padding: "12px 16px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 10 }}>
+            <p style={{ fontSize: 13, color: "#fca5a5", fontWeight: 600, marginBottom: 6 }}>⚠️ Vi chất cần bổ sung thêm</p>
+            <p style={{ fontSize: 13, color: "#94a3b8" }}>
+              {lowCoverage.map((m) => m.name).join(", ")} — có thể thiếu từ thực đơn hàng ngày.
+              Xem tab "Vitamin & Khoáng chất" để biết nguồn thực phẩm giàu hơn hoặc cân nhắc bổ sung.
+            </p>
+          </div>
+        )}
+
+        <p style={{ fontSize: 12, color: "#475569", marginTop: 14 }}>
+          * Dựa trên cơ sở dữ liệu dinh dưỡng USDA và Viện Dinh dưỡng Việt Nam. Một số vi chất (Omega-3, Vitamin D) khó đạt từ thực phẩm thông thường — cân nhắc thực phẩm chức năng nếu thiếu hụt kéo dài.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN COMPONENT ───────────────────────────────────────────────────────────
+
 export default function Results() {
   const navigate = useNavigate();
   const [results, setResults] = useState<NutritionResults | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
+  const [mealPlan, setMealPlan] = useState<DayMealPlan | null>(null);
 
   useEffect(() => {
     const r = sessionStorage.getItem("nutri_results");
@@ -385,11 +500,43 @@ export default function Results() {
     results.targetCalories
   );
 
+  // Build micro targets for meal plan coverage from the nutrient RDAs
+  const microTargetsForPlan: MicroTargets = (() => {
+    const get = (name: string) => nutrients.find((n) => n.name === name)?.rda ?? 0;
+    return {
+      vitA:   get("Vitamin A"),
+      vitC:   get("Vitamin C"),
+      vitD:   get("Vitamin D"),
+      vitB12: get("Vitamin B12"),
+      folate: get("Vitamin B9 (Folate)"),
+      ca:     get("Canxi"),
+      fe:     get("Sắt"),
+      zn:     get("Kẽm"),
+      mg_:    get("Magiê"),
+      k:      get("Kali"),
+      epadha: 250,
+    };
+  })();
+
+  const regenMealPlan = useCallback(() => {
+    setMealPlan(generateMealPlan(results.macros, microTargetsForPlan));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results.macros.calories]);
+
+  // Generate on first tab switch to meal plan
+  const handleTabChange = (t: Tab) => {
+    setTab(t);
+    if (t === "mealplan" && !mealPlan) {
+      setMealPlan(generateMealPlan(results.macros, microTargetsForPlan));
+    }
+  };
+
   const TABS: { id: Tab; label: string; count?: number }[] = [
-    { id: "overview", label: "📊 Tổng quan" },
-    { id: "amino", label: "💪 Amino Acids", count: nutrients.filter((n) => n.category === "amino_acid").length },
-    { id: "vitamins", label: "🧬 Vitamin & Khoáng chất", count: nutrients.filter((n) => n.category === "vitamin" || n.category === "mineral").length },
+    { id: "overview",  label: "📊 Tổng quan" },
+    { id: "amino",     label: "💪 Amino Acids", count: nutrients.filter((n) => n.category === "amino_acid").length },
+    { id: "vitamins",  label: "🧬 Vitamin & Khoáng chất", count: nutrients.filter((n) => n.category === "vitamin" || n.category === "mineral").length },
     { id: "bioactive", label: "🧪 Hợp chất sinh học", count: nutrients.filter((n) => n.category === "fatty_acid" || n.category === "bioactive").length },
+    { id: "mealplan",  label: "🍽️ Thực đơn gợi ý" },
   ];
 
   return (
@@ -427,7 +574,7 @@ export default function Results() {
         {TABS.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => handleTabChange(t.id)}
             style={{
               padding: "10px 16px", fontSize: 14, fontWeight: 500, cursor: "pointer",
               background: "transparent", border: "none",
@@ -537,6 +684,10 @@ export default function Results() {
 
       {tab === "bioactive" && (
         <BioactiveTab nutrients={nutrients} />
+      )}
+
+      {tab === "mealplan" && mealPlan && (
+        <MealPlanTab plan={mealPlan} onRegenerate={regenMealPlan} />
       )}
 
       {/* CTA */}
