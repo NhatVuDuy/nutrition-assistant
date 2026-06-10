@@ -58,8 +58,11 @@ export default function System() {
         <p style={{ color: "#94a3b8", fontSize: 15, lineHeight: 1.7 }}>
           NutriCalc — ứng dụng tư vấn dinh dưỡng cá nhân hóa, chạy hoàn toàn phía client, không cần backend hay cơ sở dữ liệu.
         </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-          {["React 18", "TypeScript", "Vite 8", "Tailwind CSS v4", "Recharts v3", "React Router v7", "Lucide React"].map((t) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+          <span style={{ fontSize: 12, color: "#10b981", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", padding: "3px 12px", borderRadius: 20, fontFamily: "monospace", fontWeight: 600 }}>
+            version {__APP_VERSION__}
+          </span>
+          {["React 18", "TypeScript", "Vite 8", "Tailwind CSS v4", "Recharts v3", "React Router v7"].map((t) => (
             <span key={t} style={S.pill}>{t}</span>
           ))}
         </div>
