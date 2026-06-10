@@ -43,7 +43,6 @@ export default function Calculator() {
     setProfile((p) => ({ ...p, [key]: value }));
 
   const isStep0Valid =
-    profile.name &&
     profile.age &&
     profile.age >= 10 &&
     profile.age <= 120 &&

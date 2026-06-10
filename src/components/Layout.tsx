@@ -61,6 +61,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <p style={{ marginTop: 4, fontSize: 12, color: "#334155" }}>
           Thông tin mang tính tham khảo, không thay thế tư vấn y tế chuyên nghiệp.
         </p>
+        <p style={{ marginTop: 8 }}>
+          <Link to="/sys" style={{ fontSize: 12, color: "#334155", textDecoration: "none", opacity: 0.6 }}>
+            🏗️ Kiến trúc hệ thống
+          </Link>
+        </p>
       </footer>
     </div>
   );
