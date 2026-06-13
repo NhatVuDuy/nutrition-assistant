@@ -48,6 +48,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             >
               Tính toán
             </Link>
+            <Link
+              to="/food"
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 500,
+                textDecoration: "none",
+                color: location.pathname.startsWith("/food") ? "#10b981" : "#94a3b8",
+                background: location.pathname.startsWith("/food") ? "rgba(16,185,129,0.1)" : "transparent",
+                transition: "all 0.2s",
+              }}
+            >
+              Tra cứu
+            </Link>
           </nav>
         </div>
       </header>
